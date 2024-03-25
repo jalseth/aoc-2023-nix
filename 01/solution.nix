@@ -4,17 +4,40 @@ with builtins;
 let
   strings = (import <nixpkgs> {}).lib.strings;
 
-  numStrs = genList (x: toString x) 10;
-
-  contains = list : val :
-    let h = head list; t = tail list;
+  values =
+    let
+      nums = genList (x: toString (x + 1)) 9;
+      vals = listToAttrs (map (x: { name = x; value = x; }) nums);
     in
-      if h == val then true
-      else if length t == 0 then false
-      else contains t val;
+      vals // {
+        "one"   = "1";
+        "two"   = "2";
+        "three" = "3";
+        "four"  = "4";
+        "five"  = "5";
+        "six"   = "6";
+        "seven" = "7";
+        "eight" = "8";
+        "nine"  = "9";
+      };
+
+  keys = attrNames values;
 
   parseLine = line :
-    let numbers = filter (contains numStrs) (split "" line);
+    let
+      lineLen = stringLength line;
+      numbers = scan 0 keys [];
+      scan = idx: searching: found:
+        let
+          key = head searching;
+          len = stringLength key;
+          str = substring idx len line;
+          rem = tail searching;
+        in
+          if idx >= lineLen then found
+          else if str == key then scan (idx + len) keys (found ++ [(getAttr key values)])
+          else if length rem == 0 then scan (idx + 1) keys found
+          else scan idx rem found;
     in
       if length numbers == 0 then 0
       else
