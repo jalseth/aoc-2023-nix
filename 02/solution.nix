@@ -8,9 +8,7 @@ let
   getDefault = default: key: set: if hasAttr key set then getAttr key set else default;
   getInt = key: set: getDefault 0 key set;
 
-  parseLines = lines:
-    if length lines == 0 then []
-    else [(parseLine (head lines))] ++ parseLines (tail lines);
+  forEach = f: foldl' (x: y: x ++ [(f y)]) [];
 
   parseLine = line:
     let
@@ -25,12 +23,8 @@ let
   parseGame = game:
     let
       rounds = filter isString (split ";" game);
-      parseRounds = rounds:
-        if length rounds == 0 then []
-        else [(parseRound (head rounds))] ++ parseRounds (tail rounds);
       parseRound = r: mapAttrs (k: v: extractColorValue r k) maxCubeCounts;
-    in
-      parseRounds rounds;
+    in forEach parseRound rounds;
 
   extractColorValue = str: color:
     let extractInt = str: pattern:
@@ -50,16 +44,14 @@ let
         (color: _: (getInt color round) > (getInt color maxCubeCounts))
         maxCubeCounts));
 
-  sumIDs = games:
-    if length games == 0 then 0
-    else (head games).id + sumIDs (tail games);
+  sumIDs = foldl' (x: y: x + y.id) 0;
 
 in
   let
     lines = filter
       (line: line != "")
       (filter isString (split "\n" (readFile ./input.txt)));
-    games = parseLines lines;
+    games = forEach parseLine lines;
     valid = filter validGame games;
   in
     sumIDs valid
