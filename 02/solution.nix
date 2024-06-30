@@ -23,17 +23,16 @@ let
   parseGame = game:
     let
       rounds = filter isString (split ";" game);
-      parseRound = r: mapAttrs (k: v: extractColorValue r k) maxCubeCounts;
+      parseRound = r: mapAttrs (k: _: extractColorValue k r) maxCubeCounts;
     in forEach parseRound rounds;
 
-  extractColorValue = str: color:
-    let extractInt = str: pattern:
-      let m = match pattern str;
-      in
-        if isNull m || length m == 0 then 0
-        else strings.toIntBase10 (elemAt m 0);
+  extractColorValue = color: str:
+    let
+      re = ".*[[:space:]]+([[:digit:]]+)[[:space:]]+${color}.*";
+      m = match re str;
     in
-      extractInt str ".*[[:space:]]+([[:digit:]]+)[[:space:]]+${color}.*";
+      if isNull m || length m == 0 then 0
+      else strings.toIntBase10 (elemAt m 0);
 
   validGame = game: all validRound game.rounds;
 
@@ -44,7 +43,16 @@ let
         (color: _: (getInt color round) > (getInt color maxCubeCounts))
         maxCubeCounts));
 
+  power = game:
+    let mv = maxValues game;
+    in foldl' (x: y: x * (getAttr y mv)) 1 (attrNames maxCubeCounts);
+
+  maxValues = game:
+    let max = foldl' (x: y: if y > x then y else x) 0;
+    in mapAttrs (k: _: max (catAttrs k game.rounds)) maxCubeCounts;
+
   sumIDs = foldl' (x: y: x + y.id) 0;
+  sumPower = foldl' (x: y: x + (power y)) 0;
 
 in
   let
@@ -52,6 +60,5 @@ in
       (line: line != "")
       (filter isString (split "\n" (readFile ./input.txt)));
     games = forEach parseLine lines;
-    valid = filter validGame games;
   in
-    sumIDs valid
+    sumPower games
