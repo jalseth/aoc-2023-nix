@@ -1,3 +1,10 @@
+# Steps
+# 1. Scan matrix for matches of some type
+# 2. Scan again for related type
+# 3. Associated related when isTouching is true
+# 4. Filter func (eg size > 0 or size == 2)
+# 5. Agg func
+
 with builtins;
 
 let
@@ -5,15 +12,17 @@ let
 
   buildMatrix = foldl' (a: b: a ++ [(strings.stringToCharacters b)]) [];
 
-  isPeriod = char: char == 46;  # Period, which is treated as empty space.
-  isDigit = char: (char >= 48 && char <= 57);  # Digits 0-9.
+  isPeriod = char: char == ".";  # Period, which is treated as empty space.
+  isDigit = char:
+    let c = strings.charToInt char;
+    in (c >= 48 && c <= 57);  # Digits 0-9.
   isSpecial = char: !(isPeriod char || isDigit char);
 
   sublist = list: start: end:
     let idx = genList(n: n + start) (end - start + 1);
     in foldl' (a: b: a ++ [(elemAt list b)]) [] idx;
 
-  scanForNumGroups = matrix:
+  scanForMatches = matrix: matchFn:
     let
       rowNums = genList (n: n) (length matrix);
       width = length (elemAt matrix 0);
@@ -21,11 +30,11 @@ let
         let
           row = elemAt matrix rowNum;
           build = start: end:
-            let num = strings.toIntBase10 (strings.concatStrings (sublist row start end));
-            in { num = num; row = rowNum; start = start; end = end; };
+            let str = strings.concatStrings (sublist row start end);
+            in { str = str; row = rowNum; start = start; end = end; };
           iter = found: matchPos: pos:
             let
-              match = isDigit (strings.charToInt (elemAt row pos));
+              match = matchFn (elemAt row pos);
               prevMatch = matchPos != null;
               next = pos + 1;
             in
@@ -39,32 +48,34 @@ let
     in
       foldl' (acc: row: acc ++ scan row) [] rowNums;
 
-  isPart = matrix: row: start: end:
-    let
-      rows =
-        let l = [(row - 1) row (row + 1)]; # Need to look up and down.
-        in filter (n: n >= 0 && n < (length matrix)) l; # Remove impossible y positions.
-      cols =
-        let l = genList (n: n + start - 1) (end - start + 1 + 2); # Need to look left and right.
-        in filter (n: n >= 0 && n < (length (elemAt matrix 0))) l; # Remove impossible x positions.
-      coords = 
-        let all = map (r: map (c: { col = c ; row = r; }) cols) rows;
-        in foldl' (a: b: a ++ b) [] all; # Flatten to 1 dimension.
-      check = coord:
-        let char = strings.charToInt (elemAt (elemAt matrix coord.row) coord.col);
-        in isSpecial char;
-    in
-      foldl' (ok: c: ok || check c) false coords;
+  isTouching = a: b:
+    let touching = x: y: x - y >= -1 && x - y <= 1;
+    in touching a.row b.row && (touching a.start b.end || touching a.end b.start);
+
+  associateTouching = matches: related:
+    let associate = m: filter (r: isTouching m r) related;
+    in map (m: m // { associated = associate m; }) matches;
+
+  isPart = m: length m.associated > 0;
+  partCalc = m: strings.toIntBase10 m.str;
 
 in
   let
+    # Case-specific config.
+    matchFn = isDigit;
+    relatedFn = isSpecial;
+    filterFn = isPart;
+    calcFn = partCalc;
+
+    # No updates needed below here.
     lines = filter
       (line: line != "")
       (filter isString (split "\n" (readFile ./input.txt)));
-
     matrix = buildMatrix lines;
-    possibleParts = scanForNumGroups matrix;
-    check = isPart matrix;
-    parts = filter (x: check x.row x.start x.end) possibleParts;
+    matches = scanForMatches matrix matchFn;
+    related = scanForMatches matrix relatedFn;
+    associated = associateTouching matches related;
+    filtered = filter (x: filterFn x) associated;
+    total = foldl' (a: b: a + calcFn b) 0 filtered;
   in
-   foldl' (a: b: a + b.num) 0 parts
+    total
