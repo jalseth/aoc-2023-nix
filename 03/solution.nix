@@ -17,6 +17,7 @@ let
     let c = strings.charToInt char;
     in (c >= 48 && c <= 57);  # Digits 0-9.
   isSpecial = char: !(isPeriod char || isDigit char);
+  isAsterisk = char: char == "*";
 
   sublist = list: start: end:
     let idx = genList(n: n + start) (end - start + 1);
@@ -59,13 +60,16 @@ let
   isPart = m: length m.associated > 0;
   partCalc = m: strings.toIntBase10 m.str;
 
+  isGear = m: length m.associated == 2;
+  gearCalc = m: foldl' (a: b: a * strings.toIntBase10 b.str) 1 m.associated;
+
 in
   let
     # Case-specific config.
-    matchFn = isDigit;
-    relatedFn = isSpecial;
-    filterFn = isPart;
-    calcFn = partCalc;
+    matchFn = isAsterisk;
+    relatedFn = isDigit;
+    filterFn = isGear;
+    calcFn = gearCalc;
 
     # No updates needed below here.
     lines = filter
@@ -75,7 +79,7 @@ in
     matches = scanForMatches matrix matchFn;
     related = scanForMatches matrix relatedFn;
     associated = associateTouching matches related;
-    filtered = filter (x: filterFn x) associated;
+    filtered = filter filterFn associated;
     total = foldl' (a: b: a + calcFn b) 0 filtered;
   in
     total
